@@ -9,7 +9,13 @@ internal class Program
     static string AccessToken;
     private static async Task Main(string[] args)
     {
-        
+        Console.WriteLine("=======================================");
+        Console.WriteLine("欢迎来到天蛙云全自动抢课!");
+        Console.WriteLine("当前抢课目标: 2023-2024学年23级上学期研究性学习选课-同安 (281C2B5B3DBE6CDE514134A3AC501952)");
+        Console.WriteLine("Developed by Aunt_nuozhen@Aunt Studio");
+        Console.WriteLine("Source code are open under GNU GENERAL PUBLIC LICENSE V3");
+        Console.WriteLine("Github: https://github.com/yangnuozhen/selectCourse");
+        Console.WriteLine("=======================================\n");
         Console.WriteLine("请输入用户名。");
         Console.WriteLine("通常情况下，用户名是你的学籍号，也就是G+身份证号。");
         Console.WriteLine();
