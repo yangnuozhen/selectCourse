@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Newtonsoft.Json.Linq;
 
@@ -26,13 +27,11 @@ internal class Program
 
         Console.WriteLine("===============登录结束===============");
         Console.WriteLine();
+        Console.WriteLine("正在获取选课列表...");
+        await selectTargetCourse();
         Console.WriteLine("请输入欲报名的课程对应的ClassID。");
-        Console.WriteLine("ClassID可由getByTimeTaskId 返回值中对应选课的classId取得。");
-        Console.WriteLine("什么？你不会抓包？请寻找Aunt_nuozhen获得ClassID。");
+        Console.WriteLine("ClassID可由上方输出的课程列表复制对应选课的classId取得。");
         string classIds = Console.ReadLine();
-        //修改classIds来修改选择的课程。
-        //classIds可由getByTimeTaskId 取得
-        //什么？你不会抓包？请寻找Aunt_nuozhen获得ClassID。
         Console.WriteLine("请输入尝试间隔(单位: 毫秒, 只输入整数)。建议不要太快(5000以上)，否则可能会被服务器Nginx 429 Too Many Requests");
         int delayTime = int.Parse(Console.ReadLine());
         Console.WriteLine("===============开始尝试===============");
@@ -93,7 +92,7 @@ internal class Program
             JObject json = JObject.Parse(r);
             if (json["code"]?.ToString() != "1")
             {
-                Console.WriteLine("\nError: 登录失败。服务器请检查用户名与密码。服务器Response:\n");
+                Console.WriteLine("\nError: 登录失败。请检查用户名与密码。服务器Response:\n");
                 Console.WriteLine(r);
                 System.Environment.Exit(1);
 
@@ -111,5 +110,42 @@ internal class Program
         }
         
 
+    }
+    private static async Task selectTargetCourse()
+    {
+        string url = "https://gateway.tianwayun.com/apps/course/stu/selectTask/getByTimeTaskId?taskId=281C2B5B3DBE6CDE514134A3AC501952";
+        string r;
+        Console.Write("正在发送请求包...");
+        using (HttpClient client = new HttpClient())
+        {
+            client.DefaultRequestHeaders.Add("AccessToken", AccessToken);
+            client.DefaultRequestHeaders.Add("AppKey", AppKey);
+            HttpResponseMessage response = await client.GetAsync(url);
+            r = await response.Content.ReadAsStringAsync();
+            
+        }
+        Console.WriteLine("OK");
+        Console.WriteLine("开始解析并输出选课列表\n");
+        
+
+        JObject json = JObject.Parse(r);
+        if (json["code"]?.ToString() != "1")
+        {
+            Console.WriteLine("\nError: 无法获得选课列表。服务器Response:\n");
+            Console.WriteLine(r);
+            System.Environment.Exit(1);
+
+        }
+        Console.WriteLine("==============================================");
+        int userListCount = json["data"]["courseDTOS"][0]["classDTOS"].Count();
+        for(int i = 0; i < userListCount; i++)
+        {
+            Console.WriteLine($"[{i+1}]\n | 课程名称:{json["data"]["courseDTOS"][0]["classDTOS"][i]["className"]}" );
+            Console.WriteLine($" | 授课教师:{json["data"]["courseDTOS"][0]["classDTOS"][i]["teacherName"]}");
+            Console.WriteLine($" | ClassID:{json["data"]["courseDTOS"][0]["classDTOS"][i]["classId"]}");
+            Console.WriteLine();
+            
+        }
+        Console.WriteLine("==============================================");
     }
 }
