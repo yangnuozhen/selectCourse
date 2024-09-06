@@ -9,25 +9,48 @@ internal class Program
     static string AccessToken;
     static string GlobalTaskId;
     static string GlobalClassId;
+    static DateTime GlobalStartTime;
+    static int mode = 0; //0 = 循环尝试 1 = 定时尝试
     private static async Task Main(string[] args)
     {
+        Console.WriteLine("""
+
+              _________          _______                           _____      _           _   
+             |__   __\ \        / / ____|                         / ____|    | |         | |  
+                | |   \ \  /\  / / |     ___  _   _ _ __ ___  ___| (___   ___| | ___  ___| |_ 
+                | |    \ \/  \/ /| |    / _ \| | | | '__/ __|/ _ \\___ \ / _ \ |/ _ \/ __| __|
+                | |     \  /\  / | |___| (_) | |_| | |  \__ \  __/____) |  __/ |  __/ (__| |_ 
+                |_|      \/  \/   \_____\___/ \__,_|_|  |___/\___|_____/ \___|_|\___|\___|\__|
+                                                                                              
+                                                                                              
+
+            """);
         Console.WriteLine("=======================================");
         Console.WriteLine("欢迎来到天蛙云全自动抢课!");
-        Console.WriteLine("Developed by Aunt_nuozhen@Aunt Studio");
+        Console.WriteLine("Developed by Aunt_nuozhen @ Aunt Studio");
         Console.WriteLine("Source code are open under GNU GENERAL PUBLIC LICENSE V3");
         Console.WriteLine("Github: https://github.com/yangnuozhen/selectCourse");
         Console.WriteLine("请对您自己的行为负责任。");
         Console.WriteLine("=======================================\n");
-        Console.WriteLine("请输入用户名。");
+        INPUT_USERNAME: Console.WriteLine("请输入用户名。");
         Console.WriteLine("通常情况下，用户名是你的学籍号，也就是G+身份证号。");
         Console.WriteLine();
         string AccountName = Console.ReadLine();
+        if (string.IsNullOrWhiteSpace(AccountName)) {
+            Console.WriteLine("用户名不能为空.");
+            goto INPUT_USERNAME;
+        }
         Console.WriteLine();
         Console.WriteLine();
-        Console.WriteLine("请输入密码。");
+        INPUT_PASSWORD:  Console.WriteLine("请输入密码。");
         Console.WriteLine("在你没有手动修改密码的情况下，密码默认为你的学籍号后6位。");
         Console.WriteLine();
         string Password = Console.ReadLine();
+        if (string.IsNullOrWhiteSpace(Password))
+        {
+            Console.WriteLine("密码不能为空.");
+            goto INPUT_PASSWORD;
+        }
         Console.WriteLine();
         Console.WriteLine("==============Please Wait==============");
 
@@ -36,36 +59,123 @@ internal class Program
         Console.WriteLine("===============登录结束===============");
         Console.WriteLine();
         Console.WriteLine("正在获取选课任务列表...");
-        await selectTargetTask();
+        await InquireSelectTargetTask();
         Console.WriteLine("正在获取选课列表...");
-        await selectTargetCourse();
-        Console.WriteLine("请输入尝试间隔(单位: 毫秒, 只输入整数)。建议不要太快(800以上)，否则可能会被服务器Nginx 429 Too Many Requests");
-        int delayTime = int.Parse(Console.ReadLine());
-        Console.WriteLine("===============开始尝试 请勿关闭命令行窗口===============");
-        int times = 1;
-        while(true)
-        {
-            try
-            {
-                string back = await PostRequest($"https://gateway.tianwayun.com/apps/course/stu/selectTask/selectTimeCourse?taskId={GlobalTaskId}&classIds={GlobalClassId}", AccessToken, AppKey);
-                
-                Console.WriteLine($"The {times}st try.");
-                Console.WriteLine(back);
-                Console.WriteLine("====================================");
-                await Task.Delay(delayTime);
-                times++;
-            }catch (Exception ex)
-            {
-                Console.WriteLine("============Fatal Error!============");
-                Console.WriteLine(ex.ToString());
-                Console.WriteLine("============Fatal Error!============");
-                break;
-            }
+        await InquireSelectTargetCourse();
+        INPUT_MODE:  Console.WriteLine("请选择尝试模式。\n[0]: 循环尝试\n[1]: 定时尝试");
+        Console.WriteLine("""
+            
+            说明: 
+            [0]: 循环尝试，即在程序开始运行后将立即开始不断重复发送数据包以尝试提交选课。
+                 对于某一些特殊情况(例如，后台突然开放提交) 下较为保险，但不断发送数据包有一定概率会导致服务器封禁你的IP。
 
+            [1]: 定时尝试，即在程序开始运行后将先获取选课任务的开放提交时间，并直到开放选课前几秒才开始尝试发送数据包。
+                 该方法存在小概率会导致选课没有及时被提交，例如系统计时器出现错误、突然开放提交等。
+                 使用此模式，请务必确保您的计算机系统时间精确，否则可能会导致提交的延迟。
+            
+            建议 (默认) 值: 1
+
+            """);
+        Console.WriteLine("请选择尝试模式: ");
+        if (!int.TryParse(Console.ReadLine(), out mode) || mode < 0 || mode > 1)
+        {
+            Console.WriteLine("非法的输入。");
+            goto INPUT_MODE;
         }
-        Console.WriteLine("Good Night.");
+        switch (mode)
+        {
+            case 0:
+                INPUT_DELAYTIME:  Console.WriteLine("请输入尝试间隔(单位: 毫秒, 只输入整数)。建议不要太快(800以上)，否则可能会被服务器Nginx 429 Too Many Requests");
+                int delayTime;
+                if (!int.TryParse(Console.ReadLine(), out delayTime))
+                {
+                    Console.WriteLine("无法将您的输入转换为整数。");
+                    goto INPUT_DELAYTIME;
+                }
+                Console.WriteLine("===============开始尝试 请勿关闭命令行窗口===============");
+                int times = 1;
+                while (true)
+                {
+                    try
+                    {
+                        string back = await PostRequest($"https://gateway.tianwayun.com/apps/course/stu/selectTask/selectTimeCourse?taskId={GlobalTaskId}&classIds={GlobalClassId}", AccessToken, AppKey);
+
+                        Console.WriteLine($"The {times}st try.");
+                        Console.WriteLine(back);
+                        Console.WriteLine("====================================");
+                        await Task.Delay(delayTime);
+                        times++;
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine("============Fatal Error!============");
+                        Console.WriteLine(ex.ToString());
+                        Console.WriteLine("============Fatal Error!============");
+                        break;
+                    }
+
+                }
+                Console.WriteLine("Good Night.");
+                break;
+            case 1:
+                int tryBefore;
+                INPUT_TRYBEFORE: Console.WriteLine("请输入在任务开始前多少秒开始尝试选课(单位: 秒, 只接受整数): ");
+                if (!int.TryParse(Console.ReadLine(), out tryBefore))
+                {
+                    Console.WriteLine("无法将您的输入转换为整数。");
+                    goto INPUT_TRYBEFORE;
+                }
+                INPUT_RESTTIME: Console.WriteLine("请输入在开始尝试选课后的尝试间隔(单位: ms, 只输入整数, 1s = 1000ms)。建议在100左右: ");
+                int restTime;
+                if (!int.TryParse(Console.ReadLine(), out restTime))
+                {
+                    Console.WriteLine("无法将您的输入转换为整数。");
+                    goto INPUT_RESTTIME;
+                }
+                DateTime StartTryingTime = GlobalStartTime.AddSeconds(-tryBefore);
+                Console.WriteLine($"选课任务开始时间: {GlobalStartTime.ToLocalTime()}");
+                Console.WriteLine($"将在 {StartTryingTime.ToLocalTime()} 时开始尝试抢课。");
+                
+                ExecuteAt(StartTryingTime, async () =>
+                {
+                    Console.WriteLine("===============抢课已开始===============");
+                    int times = 1;
+                    while (true)
+                    {
+                        try
+                        {
+                            string back = await PostRequest($"https://gateway.tianwayun.com/apps/course/stu/selectTask/selectTimeCourse?taskId={GlobalTaskId}&classIds={GlobalClassId}", AccessToken, AppKey);
+
+                            Console.WriteLine($"The {times}st try.");
+                            Console.WriteLine(back);
+                            Console.WriteLine("====================================");
+                            await Task.Delay(restTime);
+                            times++;
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("============Fatal Error!============");
+                            Console.WriteLine(ex.ToString());
+                            Console.WriteLine("============Fatal Error!============");
+                            break;
+                        }
+
+                    }
+                });
+                Console.WriteLine("\n===============定时模式已启用 请勿关闭命令行窗口===============\n");
+                await Task.Delay(Timeout.Infinite);
+                break;
+        }
+
     }
 
+    /// <summary>
+    /// 向服务器发送POST请求
+    /// </summary>
+    /// <param name="url">指定URL</param>
+    /// <param name="AccessToken">指定AccessToken</param>
+    /// <param name="AppKey">指定AppKey</param>
+    /// <returns></returns>
     private static async Task<string> PostRequest(string url, string AccessToken, string AppKey)
     {
         using (HttpClient client = new HttpClient())
@@ -99,8 +209,18 @@ internal class Program
             JObject json = JObject.Parse(r);
             if (json["code"]?.ToString() != "1")
             {
+                if (json["msgcode"].ToString() == "EXECUTE_SECURITY_ASSESS")
+                {
+                    Console.WriteLine("\nError: 登录失败。\n 天蛙云要求您先更改安全级别更高的密码。请先前往 https://tianwayun.com/ 手动登录账户并按照提示修改密码后再使用本软件登录。\n服务器Response:\n");
+                    Console.WriteLine(r);
+                    Console.WriteLine("按任意键退出程序");
+                    Console.ReadLine();
+                    Environment.Exit(1);
+                }
                 Console.WriteLine("\nError: 登录失败。请检查用户名与密码。服务器Response:\n");
                 Console.WriteLine(r);
+                Console.WriteLine("按任意键退出程序");
+                Console.ReadLine();
                 System.Environment.Exit(1);
 
             }
@@ -118,7 +238,7 @@ internal class Program
         
 
     }
-    private static async Task selectTargetCourse()
+    private static async Task InquireSelectTargetCourse()
     {
         string url = $"https://gateway.tianwayun.com/apps/course/stu/selectTask/getByTimeTaskId?taskId={GlobalTaskId}";
         string r;
@@ -143,6 +263,8 @@ internal class Program
         {
             Console.WriteLine("\nError: 无法获得选课列表。服务器Response:\n");
             Console.WriteLine(r);
+            Console.WriteLine("按任意键退出程序");
+            Console.ReadLine();
             System.Environment.Exit(1);
 
         }
@@ -166,13 +288,14 @@ internal class Program
 
         Console.WriteLine($"成功, 当前已选择课程: {className[select - 1]}。");
     }
-    private static async Task selectTargetTask()
+    private static async Task InquireSelectTargetTask()
     {
         string url = "https://gateway.tianwayun.com/apps/course/stu/selectTask/list?endFlag=false";
         string r;
         List<string> taskName = new List<string>();
         List<string> semesterName = new List<string>();
         List<string> beginTime = new List<string>();
+        List<string> beginTimeStamp = new List<string>();
         List<string> endTime = new List<string>();
         List<string> completeStat = new List<string>();
         List<string> taskId = new List<string>();
@@ -192,6 +315,8 @@ internal class Program
         {
             Console.WriteLine("\nError: 无法获得选课任务列表。\nCoursed By: 服务器回应code非1.\n服务器Response:\n");
             Console.WriteLine(r);
+            Console.WriteLine("按任意键退出程序");
+            Console.ReadLine();
             System.Environment.Exit(1);
 
         }
@@ -202,6 +327,7 @@ internal class Program
             taskName.Add(rows[i]["taskName"].ToString());
             semesterName.Add(rows[i]["semesterName"].ToString());
             beginTime.Add(rows[i]["beginTimeStr"].ToString());
+            beginTimeStamp.Add(rows[i]["beginTimeStamp"].ToString());
             endTime.Add(rows[i]["endTimeStr"].ToString());
             completeStat.Add(rows[i]["completeStatusZh"].ToString());
             taskId.Add(rows[i]["taskId"].ToString());
@@ -218,7 +344,27 @@ internal class Program
         Console.WriteLine("请输入选课任务前的序号: ");
         int select = int.Parse(Console.ReadLine());
         GlobalTaskId = taskId[select - 1];
-
+        GlobalStartTime = DateTimeOffset.FromUnixTimeMilliseconds(long.Parse(beginTimeStamp[select - 1])).DateTime;
         Console.WriteLine($"成功, 当前选课任务为: {taskName[select - 1]}。");
+    }
+
+    private static void ExecuteAt(DateTime targetTime, Func<Task> action)
+    {
+        TimeSpan delay = targetTime - DateTime.Now;
+
+        if (delay <= TimeSpan.Zero)
+        {
+            // 如果目标时间已经过去，立即执行
+            action();
+            return;
+        }
+
+        Timer timer = null;
+        timer = new Timer(_ =>
+        {
+            action();
+            // 释放定时器资源
+            timer.Dispose();
+        }, null, delay, Timeout.InfiniteTimeSpan);
     }
 }
