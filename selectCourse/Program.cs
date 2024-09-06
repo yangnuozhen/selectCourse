@@ -13,6 +13,7 @@ internal class Program
     static int mode = 0; //0 = 循环尝试 1 = 定时尝试
     private static async Task Main(string[] args)
     {
+
         Console.WriteLine("""
 
               _________          _______                           _____      _           _   
@@ -30,6 +31,7 @@ internal class Program
         Console.WriteLine("Developed by Aunt_nuozhen @ Aunt Studio");
         Console.WriteLine("Source code are open under GNU GENERAL PUBLIC LICENSE V3");
         Console.WriteLine("Github: https://github.com/yangnuozhen/selectCourse");
+        Console.WriteLine("程序版本GUID: 4F798EF6-70D4-4962-80D0-2894F9C3FDB4");
         Console.WriteLine("请对您自己的行为负责任。");
         Console.WriteLine("=======================================\n");
         INPUT_USERNAME: Console.WriteLine("请输入用户名。");
@@ -344,7 +346,7 @@ internal class Program
         Console.WriteLine("请输入选课任务前的序号: ");
         int select = int.Parse(Console.ReadLine());
         GlobalTaskId = taskId[select - 1];
-        GlobalStartTime = DateTimeOffset.FromUnixTimeMilliseconds(long.Parse(beginTimeStamp[select - 1])).DateTime;
+        GlobalStartTime = DateTimeOffset.FromUnixTimeMilliseconds(long.Parse(beginTimeStamp[select - 1])).LocalDateTime;
         Console.WriteLine($"成功, 当前选课任务为: {taskName[select - 1]}。");
     }
 
