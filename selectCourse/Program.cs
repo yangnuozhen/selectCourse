@@ -5,7 +5,7 @@ using Newtonsoft.Json.Linq;
 
 internal class Program
 {
-    static string AppKey = "02619EF1A99F54F199590E871ED8B9C2";
+    private static readonly string AppKey = "02619EF1A99F54F199590E871ED8B9C2";
     static string AccessToken;
     static string GlobalTaskId;
     static string GlobalClassId;
@@ -31,7 +31,7 @@ internal class Program
         Console.WriteLine("Developed by Aunt_nuozhen @ Aunt Studio");
         Console.WriteLine("Source code are open under GNU GENERAL PUBLIC LICENSE V3");
         Console.WriteLine("Github: https://github.com/yangnuozhen/selectCourse");
-        Console.WriteLine("程序版本GUID: 4F798EF6-70D4-4962-80D0-2894F9C3FDB4");
+        Console.WriteLine("程序版本GUID: 76CB3677-C184-414D-BC4A-7BE144290BC3");
         Console.WriteLine("请对您自己的行为负责任。");
         Console.WriteLine("=======================================\n");
         INPUT_USERNAME: Console.WriteLine("请输入用户名。");
@@ -74,6 +74,7 @@ internal class Program
             [1]: 定时尝试，即在程序开始运行后将先获取选课任务的开放提交时间，并直到开放选课前几秒才开始尝试发送数据包。
                  该方法存在小概率会导致选课没有及时被提交，例如系统计时器出现错误、突然开放提交等。
                  使用此模式，请务必确保您的计算机系统时间精确，否则可能会导致提交的延迟。
+                 在开始尝试选课前，会自动重新登录以刷新令牌。
             
             建议 (默认) 值: 1
 
@@ -121,7 +122,7 @@ internal class Program
                 break;
             case 1:
                 int tryBefore;
-                INPUT_TRYBEFORE: Console.WriteLine("请输入在任务开始前多少秒开始尝试选课(单位: 秒, 只接受整数): ");
+                INPUT_TRYBEFORE: Console.WriteLine("请输入在任务开始前多少秒开始尝试选课(单位: 秒, 只接受整数), 建议在5左右: ");
                 if (!int.TryParse(Console.ReadLine(), out tryBefore))
                 {
                     Console.WriteLine("无法将您的输入转换为整数。");
@@ -141,6 +142,8 @@ internal class Program
                 ExecuteAt(StartTryingTime, async () =>
                 {
                     Console.WriteLine("===============抢课已开始===============");
+                    AccessToken = await Login(AccountName, Password);
+                    Console.WriteLine("令牌已刷新。");
                     int times = 1;
                     while (true)
                     {
