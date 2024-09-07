@@ -10,8 +10,6 @@
     <PublishTrimmed>True</PublishTrimmed>
     <PublishAot>True</PublishAot>
     <AssemblyVersion>1.0.*</AssemblyVersion>
-    <FileVersion>1.0.*</FileVersion>
-    <Deterministic>false</Deterministic>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">

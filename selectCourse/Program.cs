@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Newtonsoft.Json.Linq;
@@ -13,7 +14,9 @@ internal class Program
     static int mode = 0; //0 = 循环尝试 1 = 定时尝试
     private static async Task Main(string[] args)
     {
-
+        // 获取当前程序集
+        Assembly assembly = Assembly.GetExecutingAssembly();
+        Version version = assembly.GetName().Version;
         Console.WriteLine("""
 
               _________          _______                           _____      _           _   
@@ -31,7 +34,7 @@ internal class Program
         Console.WriteLine("Developed by Aunt_nuozhen @ Aunt Studio");
         Console.WriteLine("Source code are open under GNU GENERAL PUBLIC LICENSE V3");
         Console.WriteLine("Github: https://github.com/yangnuozhen/selectCourse");
-        Console.WriteLine("程序版本GUID: 76CB3677-C184-414D-BC4A-7BE144290BC3");
+        Console.WriteLine($"程序版本号: {version}");
         Console.WriteLine("请对您自己的行为负责任。");
         Console.WriteLine("=======================================\n");
         INPUT_USERNAME: Console.WriteLine("请输入用户名。");
