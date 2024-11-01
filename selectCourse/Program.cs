@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Newtonsoft.Json.Linq;
+using selectCourse;
 
 internal class Program
 {
@@ -12,11 +13,15 @@ internal class Program
     static string GlobalClassId;
     static DateTime GlobalStartTime;
     static int mode = 0; //0 = 循环尝试 1 = 定时尝试
+    static int networkExceptionTimes = 0;
+    static int networkExceptionTimesLimit = 20; //修改这个可以控制全局范围内发生网络异常(除了检查更新)重新尝试的总机会数.
+    static bool autoLogin = false;
     private static async Task Main(string[] args)
     {
         // 获取当前程序集
         Assembly assembly = Assembly.GetExecutingAssembly();
         Version version = assembly.GetName().Version;
+
         Console.WriteLine("""
 
               _________          _______                           _____      _           _   
@@ -32,18 +37,37 @@ internal class Program
         Console.WriteLine("=======================================");
         Console.WriteLine("欢迎来到天蛙云全自动抢课!");
         Console.WriteLine("Developed by Aunt_nuozhen @ Aunt Studio");
-        Console.WriteLine("Source code are open under GNU GENERAL PUBLIC LICENSE V3");
-        Console.WriteLine("Github: https://github.com/yangnuozhen/selectCourse");
+        Console.WriteLine("Source code are opened under GNU GENERAL PUBLIC LICENSE V3.");
+        Console.WriteLine("GitHub: https://github.com/yangnuozhen/selectCourse");
         Console.WriteLine($"程序版本号: {version}");
         Console.WriteLine("请对您自己的行为负责任。");
+        Console.WriteLine("""
+            +--------------------------------------------------+
+                                   友情提示                     
+                  由于本程序无论是否已经开始选课都将直接调用选课接口,   
+                    该行为不符合正常用户行为逻辑. 因此使用本软件时,    
+                        服务器必然知道您正在使用辅助软件。           
+                               请自行斟酌是否继续。               
+            +--------------------------------------------------+
+            """);
         Console.WriteLine("=======================================\n");
-        Console.WriteLine("正在检查更新 (方法: GitHub API)...");
-        string ghApiResponse = await GetRequest("https://api.github.com/repos/yangnuozhen/selectCourse/releases/latest");
-        JObject json = JObject.Parse(ghApiResponse);
-        if (json["name"].ToString() != version.ToString())
+        if (args.Length > 0 && args[0] == "--skip-update-check")
         {
-            Console.WriteLine("检测到可能可以利用的更新:");
-            Console.WriteLine($"""
+            Console.WriteLine("已跳过更新检查。");
+            Console.WriteLine("将不会检查更新。请手动前往GitHub Release 列表查看是否存在可利用的新版本。\n建议始终使用最新版本。");
+        }
+        else
+        {
+            Console.WriteLine("正在检查更新 (方法: GitHub API)...");
+            Console.WriteLine("如果不希望程序自动检查更新，可以在命令行中第一个传入参数加入选项: --skip-update-check");
+            try
+            {
+                string ghApiResponse = await GetRequest("https://api.github.com/repos/yangnuozhen/selectCourse/releases/latest");
+                JObject json = JObject.Parse(ghApiResponse);
+                if (json["name"].ToString() != version.ToString())
+                {
+                    Console.WriteLine("检测到可能可以利用的更新:");
+                    Console.WriteLine($"""
                 =====================================
                 来源: GitHub Releases API
                 发行版名称: {json["name"]}
@@ -55,33 +79,66 @@ internal class Program
 
 
                 """);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("尝试检查远端 Release 版本时发生了异常:");
+                Console.WriteLine(ex.ToString());
+                Console.WriteLine("\n将不会检查更新。请手动前往GitHub Release 列表查看是否存在可利用的新版本。\n建议始终使用最新版本。");
+            }
+
         }
-    INPUT_USERNAME: Console.WriteLine("请输入用户名。");
-        Console.WriteLine("通常情况下，用户名是你的学籍号，也就是G+身份证号。");
-        Console.WriteLine();
-        string AccountName = Console.ReadLine();
-        if (string.IsNullOrWhiteSpace(AccountName))
-        {
-            Console.WriteLine("用户名不能为空.");
-            goto INPUT_USERNAME;
-        }
-        Console.WriteLine();
-        Console.WriteLine();
-    INPUT_PASSWORD: Console.WriteLine("请输入密码。");
-        Console.WriteLine("在你没有手动修改密码的情况下，密码默认为你的学籍号后6位。");
-        Console.WriteLine();
-        string Password = Console.ReadLine();
-        if (string.IsNullOrWhiteSpace(Password))
-        {
-            Console.WriteLine("密码不能为空.");
-            goto INPUT_PASSWORD;
-        }
-        Console.WriteLine();
+        string AccountName;
+        string Password;
+        //if (!string.IsNullOrEmpty(UserSettings.Default.userName) && !string.IsNullOrEmpty(UserSettings.Default.passwd))
+        //{
+        //    AccountName = UserSettings.Default.userName;
+        //    Password = UserSettings.Default.passwd;
+        //    autoLogin = true;
+        //    Console.WriteLine("已自动登录.");
+        //}
+        //else
+        //{
+        INPUT_USERNAME: Console.WriteLine("请输入用户名。");
+            Console.WriteLine("通常情况下，用户名是你的学籍号，也就是G+身份证号。");
+            Console.WriteLine();
+            AccountName = Console.ReadLine();
+            if (string.IsNullOrWhiteSpace(AccountName))
+            {
+                Console.WriteLine("用户名不能为空.");
+                goto INPUT_USERNAME;
+            }
+            Console.WriteLine();
+            Console.WriteLine();
+        INPUT_PASSWORD: Console.WriteLine("请输入密码。");
+            Console.WriteLine("在你没有手动修改密码的情况下，密码默认为你的学籍号后6位。");
+            Console.WriteLine();
+            Password = Console.ReadLine();
+            if (string.IsNullOrWhiteSpace(Password))
+            {
+                Console.WriteLine("密码不能为空.");
+                goto INPUT_PASSWORD;
+            }
+            Console.WriteLine();
+        //}
+
         Console.WriteLine("==============Please Wait==============");
 
         AccessToken = await Login(AccountName, Password);
 
         Console.WriteLine("===============登录结束===============");
+        //if (!autoLogin)
+        //{
+        //    Console.Write("是否保存密码?\n 输入y以保存: ");
+        //    if (Console.ReadLine().ToUpper() == "Y")
+        //    {
+        //        UserSettings.Default.userName = AccountName;
+        //        UserSettings.Default.passwd = Password;
+        //        UserSettings.Default.Save();
+        //    }
+        //}
+
         Console.WriteLine();
         Console.WriteLine("正在获取选课任务列表...");
         await InquireSelectTargetTask();
@@ -103,7 +160,9 @@ internal class Program
 
             """);
         Console.WriteLine("请选择尝试模式: ");
-        if (!int.TryParse(Console.ReadLine(), out mode) || mode < 0 || mode > 1)
+        string modeInput = Console.ReadLine();
+        if (string.IsNullOrWhiteSpace(modeInput)) modeInput = "1";
+        if (!int.TryParse(modeInput, out mode) || mode < 0 || mode > 1)
         {
             Console.WriteLine("非法的输入。");
             goto INPUT_MODE;
@@ -134,11 +193,14 @@ internal class Program
                     }
                     catch (HttpRequestException httpEx)
                     {
+                        networkExceptionTimes++;
                         Console.WriteLine("============Network Error============");
                         Console.WriteLine($"捕获到到由于数据包发送失败造成的{httpEx.Message}异常: ");
                         Console.WriteLine(httpEx.ToString());
                         Console.WriteLine("如果多次发生该问题，请检查您的网络是否正常。");
                         Console.WriteLine("============Network Error============");
+                        CheckNetworkExceptionTimes();
+
                     }
                     catch (Exception ex)
                     {
@@ -159,7 +221,7 @@ internal class Program
                     Console.WriteLine("无法将您的输入转换为整数。");
                     goto INPUT_TRYBEFORE;
                 }
-            INPUT_RESTTIME: Console.WriteLine("请输入在开始尝试选课后的尝试间隔(单位: ms, 只输入整数, 1s = 1000ms)。建议在100左右: ");
+            INPUT_RESTTIME: Console.WriteLine("请输入在开始尝试选课后的尝试间隔(单位: ms, 只输入整数, 1s = 1000ms)。建议在150左右: ");
                 int restTime;
                 if (!int.TryParse(Console.ReadLine(), out restTime))
                 {
@@ -190,11 +252,13 @@ internal class Program
                         }
                         catch (HttpRequestException httpEx)
                         {
+                            networkExceptionTimes++;
                             Console.WriteLine("============Network Error============");
                             Console.WriteLine($"捕获到到由于数据包发送失败造成的{httpEx.Message}异常: ");
                             Console.WriteLine(httpEx.ToString());
                             Console.WriteLine("如果多次发生该问题，请检查您的网络是否正常。");
                             Console.WriteLine("============Network Error============");
+                            CheckNetworkExceptionTimes();
                         }
                         catch (Exception ex)
                         {
@@ -236,6 +300,7 @@ internal class Program
 
     public static async Task<string> GetRequest(string url)
     {
+
         using (HttpClient client = new HttpClient())
         {
             client.DefaultRequestHeaders.UserAgent.ParseAdd("SelectCourse");
@@ -276,6 +341,7 @@ internal class Program
                 StringContent content = new StringContent($"sourceType=TW_CLOUD_SSO&userName={accountName}&userPwd={password}&verifyToken=&verifyCode=", Encoding.UTF8, "application/x-www-form-urlencoded");
                 client.DefaultRequestHeaders.Add("AppKey", AppKey);
                 HttpResponseMessage response = await client.PostAsync(url, content);
+                response.EnsureSuccessStatusCode();
                 r = await response.Content.ReadAsStringAsync();
 
             }
@@ -296,21 +362,29 @@ internal class Program
                 Console.WriteLine(r);
                 Console.WriteLine("按任意键退出程序");
                 Console.ReadLine();
-                System.Environment.Exit(1);
+                Environment.Exit(1);
 
             }
             string AccessToken = json["data"]["accessToken"].ToString();
             Console.WriteLine("OK");
             return AccessToken;
         }
+        catch (HttpRequestException httpEx)
+        {
+            networkExceptionTimes++;
+            Console.WriteLine("尝试发送登录请求包时发生了网络异常: ");
+            Console.WriteLine(httpEx.ToString());
+            CheckNetworkExceptionTimes();
+            Console.WriteLine("自动重新尝试. 多次发生该异常请检查网络。");
+            await Login(accountName, password);
+        }
         catch (Exception ex)
         {
-            Console.WriteLine("============Fatal Error While Login!============");
+            Console.WriteLine("============登录时发生致命异常============");
             Console.WriteLine(ex.ToString());
-            Console.WriteLine("============Fatal Error While Login!============");
-            return "";
+            Console.WriteLine("============登录时发生致命异常============");
         }
-
+        return null;
 
     }
     private static async Task InquireSelectTargetCourse()
@@ -357,11 +431,22 @@ internal class Program
 
         }
         Console.WriteLine("==============================================");
-        Console.WriteLine("请选择课程，并输入课程前的序号: ");
-        int select = int.Parse(Console.ReadLine());
-        GlobalClassId = classId[select - 1];
+    SELECT_COURSE: Console.WriteLine("请选择课程，并输入课程前的序号: ");
+        if (int.TryParse(Console.ReadLine(), out int select))
+        {
+            if (select > 0 && select <= classId.Count)
+            {
+                GlobalClassId = classId[select - 1];
+                Console.WriteLine($"成功, 当前已选择课程: {className[select - 1]}。");
+            }
+            else
+            {
+                Console.WriteLine("超出可选范围，请重新选择.");
+                goto SELECT_COURSE;
+            }
 
-        Console.WriteLine($"成功, 当前已选择课程: {className[select - 1]}。");
+        }
+
     }
     private static async Task InquireSelectTargetTask()
     {
@@ -416,13 +501,37 @@ internal class Program
 
         }
         Console.WriteLine("==============================================\n");
-        Console.WriteLine("请输入选课任务前的序号: ");
-        int select = int.Parse(Console.ReadLine());
-        GlobalTaskId = taskId[select - 1];
-        GlobalStartTime = DateTimeOffset.FromUnixTimeMilliseconds(long.Parse(beginTimeStamp[select - 1])).LocalDateTime;
-        Console.WriteLine($"成功, 当前选课任务为: {taskName[select - 1]}。");
+    SELECT_TARGET: Console.WriteLine("请输入选课任务前的序号: ");
+        if (int.TryParse(Console.ReadLine(), out int select))
+        {
+            if (select > 0 && select <= taskId.Count)
+            {
+                GlobalTaskId = taskId[select - 1];
+                GlobalStartTime = DateTimeOffset.FromUnixTimeMilliseconds(long.Parse(beginTimeStamp[select - 1])).LocalDateTime;
+                Console.WriteLine($"成功, 当前选课任务为: {taskName[select - 1]}。");
+            }
+            else
+            {
+                Console.WriteLine("选择超出可选范围。请重新选择。");
+                goto SELECT_TARGET;
+            }
+        }
+
     }
 
+    /// <summary>
+    /// 检查网络异常次数是否超过限制次数。
+    /// </summary>
+    private static void CheckNetworkExceptionTimes()
+    {
+        if (networkExceptionTimes >= networkExceptionTimesLimit)
+        {
+            Console.WriteLine("[错误] 网络包错误超出最大限制，为确保内存安全将自动终止程序。请检查互联网连接是否正常。");
+            Console.WriteLine("按任意键退出程序");
+            Console.ReadLine();
+            Environment.Exit(-1);
+        }
+    }
     private static void ExecuteAt(DateTime targetTime, Func<Task> action)
     {
         TimeSpan delay = targetTime - DateTime.Now;
