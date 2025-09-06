@@ -1,9 +1,9 @@
-﻿using System;
+﻿using Newtonsoft.Json.Linq;
+using selectCourse;
+using System;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
-using Newtonsoft.Json.Linq;
-using selectCourse;
 
 internal class Program
 {
@@ -14,8 +14,8 @@ internal class Program
     static DateTime GlobalStartTime;
     static int mode = 0; //0 = 循环尝试 1 = 定时尝试
     static int networkExceptionTimes = 0;
-    static int networkExceptionTimesLimit = 20; //修改这个可以控制全局范围内发生网络异常(除了检查更新)重新尝试的总机会数.
-    static bool autoLogin = false;
+    static readonly int networkExceptionTimesLimit = 20; //修改这个可以控制全局范围内发生网络异常(除了检查更新)重新尝试的总机会数.
+    // static bool autoLogin = false;
     private static async Task Main(string[] args)
     {
         // 获取当前程序集
@@ -64,14 +64,14 @@ internal class Program
             {
                 string ghApiResponse = await GetRequest("https://api.github.com/repos/yangnuozhen/selectCourse/releases/latest");
                 JObject json = JObject.Parse(ghApiResponse);
-                if (json["name"].ToString() != version.ToString())
+                if (json["name"]?.ToString() != version?.ToString())
                 {
                     Console.WriteLine("检测到可能可以利用的更新:");
                     Console.WriteLine($"""
                 =====================================
                 来源: GitHub Releases API
                 发行版名称: {json["name"]}
-                发布时间: {ConvertUtcToBeijingTime(json["published_at"].ToString())}
+                发布时间: {ConvertUtcToBeijingTime(json["published_at"]?.ToString())}
                 ID: {json["id"]}
                 下载链接: {json["html_url"]}
                 =====================================
@@ -170,6 +170,7 @@ internal class Program
         switch (mode)
         {
             case 0:
+                // 循环尝试
             INPUT_DELAYTIME: Console.WriteLine("请输入尝试间隔(单位: 毫秒, 只输入整数)。建议不要太快(800以上)，否则可能会被服务器Nginx 429 Too Many Requests");
                 int delayTime;
                 if (!int.TryParse(Console.ReadLine(), out delayTime))
@@ -185,8 +186,31 @@ internal class Program
                     {
                         string back = await PostRequest($"https://gateway.tianwayun.com/apps/course/stu/selectTask/selectTimeCourse?taskId={GlobalTaskId}&classIds={GlobalClassId}", AccessToken, AppKey);
 
-                        Console.WriteLine($"The {times}st try.");
-                        Console.WriteLine(back);
+                        Console.WriteLine($"第 {times} 次尝试: ");
+                        try
+                        {
+                            var backJObj = JObject.Parse(back);
+                            if ((int?)backJObj["code"] == -1)
+                            {
+                                Console.WriteLine($"失败了...可能还没开始呢...不要急嘛!\n{backJObj["msg"]}");
+                            }
+                            else if ((int?)backJObj["code"] == 1)
+                            {
+                                Console.WriteLine("已成功抢课。");
+                                break;
+                            }
+                            else
+                            {
+                                Console.WriteLine("没见过的返回喵...");
+                                Console.WriteLine(back);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine(back);
+                            Console.WriteLine($"尝试解析返回数据时出现异常 {ex.Message}。\n问题不大啦...");
+                        }
+                        
                         Console.WriteLine("====================================");
                         await Task.Delay(delayTime);
                         times++;
@@ -214,6 +238,16 @@ internal class Program
                 }
                 break;
             case 1:
+                // 定时尝试
+                Console.WriteLine("开始前请先参考 https://time.is/ 校准时钟。\n");
+                var serverTime = await GetServerTimeFromHeaders("https://gateway.tianwayun.com/");
+                var diff = serverTime - DateTimeOffset.Now;
+                Console.WriteLine($"天蛙云API服务器时间为: \n {serverTime?.LocalDateTime:F}");
+                Console.WriteLine($"本地计算机时间为: \n {DateTimeOffset.Now:F}");
+                Console.WriteLine($"本地计算机时间与服务器时间的差值为: {diff?.TotalSeconds:N2} 秒");
+                Console.WriteLine("如果差值过大 (大于3秒)，请务必先校准本地计算机时间，否则可能会导致抢课失败。\n");
+                Console.WriteLine("按回车键继续...");
+                Console.ReadLine();
                 int tryBefore;
             INPUT_TRYBEFORE: Console.WriteLine("请输入在任务开始前多少秒开始尝试选课(单位: 秒, 只接受整数), 建议在5左右: ");
                 if (!int.TryParse(Console.ReadLine(), out tryBefore))
@@ -243,9 +277,31 @@ internal class Program
                         try
                         {
                             string back = await PostRequest($"https://gateway.tianwayun.com/apps/course/stu/selectTask/selectTimeCourse?taskId={GlobalTaskId}&classIds={GlobalClassId}", AccessToken, AppKey);
+                            Console.WriteLine($"第 {times} 次尝试: ");
+                            try
+                            {
+                                var backJObj = JObject.Parse(back);
+                                if ((int?)backJObj["code"] == -1)
+                                {
+                                    Console.WriteLine($"失败了...可能还没开始呢...不要急嘛!\n{backJObj["msg"]}");
+                                }
+                                else if ((int?)backJObj["code"] == 1)
+                                {
+                                    Console.WriteLine("已成功抢课。");
+                                    break;
+                                }
+                                else
+                                {
+                                    Console.WriteLine("没见过的返回喵...");
+                                    Console.WriteLine(back);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine(back);
+                                Console.WriteLine($"尝试解析返回数据时出现异常 {ex.Message}。\n问题不大啦...");
+                            }
 
-                            Console.WriteLine($"The {times}st try.");
-                            Console.WriteLine(back);
                             Console.WriteLine("====================================");
                             await Task.Delay(restTime);
                             times++;
@@ -350,7 +406,7 @@ internal class Program
             JObject json = JObject.Parse(r);
             if (json["code"]?.ToString() != "1")
             {
-                if (json["msgcode"].ToString() == "EXECUTE_SECURITY_ASSESS")
+                if (json["msgcode"]?.ToString() == "EXECUTE_SECURITY_ASSESS")
                 {
                     Console.WriteLine("\nError: 登录失败。\n 天蛙云要求您先更改安全级别更高的密码。请先前往 https://tianwayun.com/ 手动登录账户并按照提示修改密码后再使用本软件登录。\n服务器Response:\n");
                     Console.WriteLine(r);
@@ -365,7 +421,7 @@ internal class Program
                 Environment.Exit(1);
 
             }
-            string AccessToken = json["data"]["accessToken"].ToString();
+            string AccessToken = json["data"]?["accessToken"]?.ToString();
             Console.WriteLine("OK");
             return AccessToken;
         }
@@ -373,7 +429,7 @@ internal class Program
         {
             networkExceptionTimes++;
             Console.WriteLine("尝试发送登录请求包时发生了网络异常: ");
-            Console.WriteLine(httpEx.ToString());
+            Console.WriteLine(httpEx?.ToString());
             CheckNetworkExceptionTimes();
             Console.WriteLine("自动重新尝试. 多次发生该异常请检查网络。");
             await Login(accountName, password);
@@ -381,7 +437,7 @@ internal class Program
         catch (Exception ex)
         {
             Console.WriteLine("============登录时发生致命异常============");
-            Console.WriteLine(ex.ToString());
+            Console.WriteLine(ex?.ToString());
             Console.WriteLine("============登录时发生致命异常============");
         }
         return null;
@@ -418,12 +474,12 @@ internal class Program
 
         }
         Console.WriteLine("==============================================");
-        int UserListCount = json["data"]["courseDTOS"][0]["classDTOS"].Count();
+        int UserListCount = json["data"]?["courseDTOS"]?[0]?["classDTOS"]?.Count() ?? 0;
         for (int i = 0; i < UserListCount; i++)
         {
-            className.Add(json["data"]["courseDTOS"][0]["classDTOS"][i]["className"].ToString());
-            teacherName.Add(json["data"]["courseDTOS"][0]["classDTOS"][i]["teacherName"].ToString());
-            classId.Add(json["data"]["courseDTOS"][0]["classDTOS"][i]["classId"].ToString());
+            className.Add(json["data"]?["courseDTOS"]?[0]?["classDTOS"]?[i]?["className"]?.ToString());
+            teacherName.Add(json["data"]?["courseDTOS"]?[0]?["classDTOS"]?[i]?["teacherName"]?.ToString());
+            classId.Add(json["data"]?["courseDTOS"]?[0]?["classDTOS"]?[i]?["classId"]?.ToString());
             Console.WriteLine($"[{i + 1}]\n | 课程名称:{className[i]}");
             Console.WriteLine($" | 授课教师:{teacherName[i]}");
             Console.WriteLine($" | ClassID:{classId[i]}");
@@ -481,16 +537,16 @@ internal class Program
 
         }
         Console.WriteLine("==============================================");
-        var rows = json["data"]["rows"];
+        var rows = json["data"]?["rows"] ?? 0;
         for (int i = 0; i < rows.Count(); i++)
         {
-            taskName.Add(rows[i]["taskName"].ToString());
-            semesterName.Add(rows[i]["semesterName"].ToString());
-            beginTime.Add(rows[i]["beginTimeStr"].ToString());
-            beginTimeStamp.Add(rows[i]["beginTimeStamp"].ToString());
-            endTime.Add(rows[i]["endTimeStr"].ToString());
-            completeStat.Add(rows[i]["completeStatusZh"].ToString());
-            taskId.Add(rows[i]["taskId"].ToString());
+            taskName.Add(rows[i]?["taskName"]?.ToString());
+            semesterName.Add(rows[i]?["semesterName"]?.ToString());
+            beginTime.Add(rows[i]?["beginTimeStr"]?.ToString());
+            beginTimeStamp.Add(rows[i]?["beginTimeStamp"]?.ToString());
+            endTime.Add(rows[i]?["endTimeStr"]?.ToString());
+            completeStat.Add(rows[i]?["completeStatusZh"]?.ToString());
+            taskId.Add(rows[i]?["taskId"]?.ToString());
 
             Console.WriteLine($"[{i + 1}] | 选课任务名称:{taskName[i]}");
             Console.WriteLine($"        | 学期:{semesterName[i]}");
@@ -548,7 +604,27 @@ internal class Program
         {
             action();
             // 释放定时器资源
-            timer.Dispose();
+            timer?.Dispose();
         }, null, delay, Timeout.InfiniteTimeSpan);
+    }
+
+    /// <summary>
+    /// 从 HttpResponseMessage 提取服务器时间（Date 响应头）
+    /// </summary>
+    /// <param name="response">HTTP 响应对象</param>
+    /// <returns>服务器时间（DateTimeOffset），如果没有则返回 null</returns>
+    public async static Task<DateTimeOffset?> GetServerTimeFromHeaders(string url)
+    {
+        using (HttpClient client = new HttpClient())
+        {
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("SelectCourse");
+            HttpResponseMessage response = await client.GetAsync(url);
+            if (response.Headers.Date.HasValue)
+            {
+                return response.Headers.Date.Value;
+            }
+            return null;
+        }
+        
     }
 }
